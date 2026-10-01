@@ -1,103 +1,44 @@
-# Books Child App Microfrontend
+# Books remote (`BooksApp`)
 
-This repository contains the **Books Child App**, designed as a microfrontend in a larger application architecture. It is built using **React**, **Tailwind CSS**, and the **Module Federation Plugin** for Webpack, and configured with **CRACO** for custom configuration.
+Micro-frontend child app for [micro-frontend-host](https://github.com/rk4rohankumar/micro-frontend-host). Searches the Google Books API with a debounced query, paging, result caching and rate-limit aware error handling. CRA 5 + CRACO 7 + webpack Module Federation, React 19, Tailwind 3, axios, framer-motion.
 
-## Features
-- Developed as a microfrontend for seamless integration with a parent application.
-- Built with modern technologies like React and Tailwind CSS.
-- Module Federation for dynamic sharing of code between apps.
-- Responsive and optimized for performance.
+Deployed at <https://books-child-app.vercel.app/>.
 
-## Tech Stack
-- **React**: Frontend library for building user interfaces.
-- **Tailwind CSS**: Utility-first CSS framework for styling.
-- **CRACO (Create React App Configuration Override)**: For extending CRA configuration.
-- **Webpack Module Federation**: For microfrontend architecture.
+## Data source
 
-## Project Setup
+`GET https://www.googleapis.com/books/v1/volumes?q=…&startIndex=…&maxResults=21`
 
-### Prerequisites
-- Node.js (>= 14.x)
-- npm or yarn package manager
+Anonymous requests are rate-limited hard by Google (HTTP 429). The app mitigates this by:
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/rk4rohankumar/books-child-app.git
-   cd books-child-app
-   ```
+- caching every page in memory and `sessionStorage`, keyed `${query}|${startIndex}`, so re-renders, back-navigation and repeated searches never refetch;
+- de-duplicating in-flight requests (StrictMode double effects fire one request);
+- not searching for queries shorter than 2 characters, with a 400 ms debounce;
+- detecting 429 specifically, showing a dedicated message and an escalating Retry cooldown (15 s → 30 s → 60 s) instead of auto-retrying.
 
-2. Install dependencies:
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
+### Optional API key
 
-### Running the Application
-To start the development server:
+Set `REACT_APP_GOOGLE_BOOKS_KEY` (see `.env.example`) and it is appended as `&key=…` to every request, which lifts the anonymous quota. Create a key in Google Cloud Console with the Books API enabled. The key is baked into the bundle at build time, so restrict it by HTTP referrer.
+
 ```bash
-npm start
-# or
-yarn start
+cp .env.example .env.local   # then paste your key
 ```
-The app will be accessible at [http://localhost:3000](http://localhost:3000).
 
-### Building for Production
-To create a production build:
+## Run / build
+
 ```bash
-npm run build
-# or
-yarn build
+npm install
+npm start          # http://localhost:3000, standalone
+npm run build      # production build in build/ (publicPath 'auto')
 ```
 
-### Configuration Details
-#### CRACO and Webpack
-The project uses **CRACO** to customize the Webpack configuration for supporting Module Federation:
-- **publicPath**: Set to `https://books-child-app.vercel.app/` for deployment.
-- **Module Federation Plugin**:
-  - Name: `BooksApp`
-  - Remote Entry: `remoteEntry.js`
-  - Exposes: `./BooksApp` from `./src/App`
-  - Shared Dependencies: `react`, `react-dom`, and `tailwindcss`
+## How the host consumes it
 
-### Deployment
-The app is deployed at: [https://books-child-app.vercel.app/](https://books-child-app.vercel.app/)
+- Scope name: `BooksApp`
+- Remote entry: `https://books-child-app.vercel.app/remoteEntry.js`
+- Exposed module: `./BooksApp` → `src/App` (default export, a self-contained React component)
 
-## Microfrontend Integration
-To consume this microfrontend in a parent application, include the following in your Module Federation configuration:
-```javascript
-new ModuleFederationPlugin({
-  remotes: {
-    BooksApp: 'BooksApp@https://books-child-app.vercel.app/remoteEntry.js',
-  },
-})
-```
+The host injects `remoteEntry.js` at runtime, calls `container.init(__webpack_share_scopes__.default)` and then `container.get('./BooksApp')`.
 
-## Scripts
-- `start`: Starts the development server.
-- `build`: Builds the app for production.
-- `test`: Runs tests.
-- `eject`: Ejects the CRA configuration.
+### Shared singletons
 
-## Folder Structure
-```
-books-child-app/
-├── src/
-│   ├── components/   # Reusable components
-│   ├── App.js         # Main App component
-│   └── index.js       # Entry point
-├── public/            # Static files
-├── craco.config.js    # Custom configuration for Webpack
-└── package.json       # Project metadata and dependencies
-```
-
-## Contribution Guidelines
-Feel free to fork the repository and submit pull requests for any enhancements or bug fixes.
-
-## License
-This project is licensed under the [MIT License](LICENSE).
-
-## Acknowledgments
-Thanks to the team for the continuous support and contributions to the microfrontend architecture.
-
+`react`, `react-dom`, `framer-motion` and `axios` are declared `singleton: true` with `requiredVersion` from `package.json`, so the host's copies are used when loaded as a remote. Nothing is `eager`; `src/index.js` is an async boundary (`import('./bootstrap')`) so the shared modules resolve before the standalone app renders.

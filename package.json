@@ -2,6 +2,7 @@
   "name": "books",
   "version": "0.1.0",
   "private": true,
+  "description": "Books micro-frontend remote (BooksApp): Google Books search with caching and rate-limit handling, exposed via webpack Module Federation.",
   "dependencies": {
     "@craco/craco": "^7.1.0",
     "autoprefixer": "^10.4.20",

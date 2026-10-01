@@ -1,7 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import { useEffect, useState, useCallback, useRef } from "react";
 
-import 'tailwindcss/tailwind.css';
+import "tailwindcss/tailwind.css";
 
 import BookCard from "./components/BookCard";
 import Loader from "./components/Loader";
@@ -9,87 +8,147 @@ import ErrorState from "./components/ErrorState";
 import EmptyState from "./components/EmptyState";
 import Pagination from "./components/Pagination";
 import useDebouncedValue from "./hooks/useDebouncedValue";
+import {
+  fetchBooks,
+  getCachedBooks,
+  PAGE_SIZE,
+  MIN_QUERY_LENGTH,
+  RateLimitError,
+} from "./lib/googleBooks";
 
-const PAGE_SIZE = 21;
 const DEFAULT_QUERY = "art";
+const DEBOUNCE_MS = 400;
+// Escalating cooldown after each consecutive 429 so Retry can't hammer the API.
+const BACKOFF_MS = [15000, 30000, 60000];
 
 const BooksPage = () => {
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
-  const [books, setBooks] = useState([]);
-  const [total, setTotal] = useState(0);
+  // Page is scoped to the query it was set for, so a new query implicitly starts at page 0
+  // without an extra render/fetch cycle.
+  const [pageState, setPageState] = useState({ query: DEFAULT_QUERY, page: 0 });
+  const [result, setResult] = useState({ items: [], totalItems: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryAfter, setRetryAfter] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const rateLimitHits = useRef(0);
 
-  const debouncedQuery = useDebouncedValue(query, 300);
-  const effectiveQuery = (debouncedQuery.trim() || DEFAULT_QUERY);
+  const debouncedQuery = useDebouncedValue(query, DEBOUNCE_MS);
+  const trimmed = debouncedQuery.trim();
+  const tooShort = trimmed.length > 0 && trimmed.length < MIN_QUERY_LENGTH;
+  const effectiveQuery = trimmed.length === 0 ? DEFAULT_QUERY : trimmed;
+  const page = pageState.query === effectiveQuery ? pageState.page : 0;
+  const startIndex = page * PAGE_SIZE;
 
   useEffect(() => {
-    setPage(0);
-  }, [debouncedQuery]);
+    if (tooShort) return undefined;
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetchBooks = async () => {
-      setLoading(true);
+    const cached = getCachedBooks(effectiveQuery, startIndex);
+    if (cached) {
+      setResult(cached);
       setError(null);
-      try {
-        const response = await axios.get(
-          "https://www.googleapis.com/books/v1/volumes",
-          {
-            params: {
-              q: effectiveQuery,
-              startIndex: page * PAGE_SIZE,
-              maxResults: PAGE_SIZE,
-            },
-          }
-        );
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetchBooks(effectiveQuery, startIndex)
+      .then((data) => {
         if (cancelled) return;
-        setBooks(response.data?.items ?? []);
-        setTotal(response.data?.totalItems ?? 0);
-      } catch (err) {
+        setResult(data);
+        rateLimitHits.current = 0;
+        setRetryAfter(null);
+      })
+      .catch((err) => {
         if (cancelled) return;
-        setError("Failed to fetch book data.");
-        setBooks([]);
-        setTotal(0);
-      } finally {
+        setResult({ items: [], totalItems: 0 });
+        if (err instanceof RateLimitError) {
+          const step = BACKOFF_MS[Math.min(rateLimitHits.current, BACKOFF_MS.length - 1)];
+          rateLimitHits.current += 1;
+          setRetryAfter(Date.now() + step);
+          setError(err.message);
+        } else {
+          setError("Failed to fetch book data.");
+        }
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    };
-    fetchBooks();
+      });
+
     return () => {
       cancelled = true;
     };
-  }, [effectiveQuery, page, reloadKey]);
+  }, [effectiveQuery, startIndex, reloadKey, tooShort]);
 
   const handleRetry = useCallback(() => {
     setReloadKey((k) => k + 1);
   }, []);
 
   const handlePrev = useCallback(() => {
-    setPage((p) => Math.max(0, p - 1));
-  }, []);
+    setPageState({ query: effectiveQuery, page: Math.max(0, page - 1) });
+  }, [effectiveQuery, page]);
 
   const handleNext = useCallback(() => {
-    setPage((p) => p + 1);
-  }, []);
+    setPageState({ query: effectiveQuery, page: page + 1 });
+  }, [effectiveQuery, page]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
   };
 
+  const { items: books, totalItems: total } = result;
+
+  let status;
+  if (tooShort) {
+    status = `Type at least ${MIN_QUERY_LENGTH} characters to search.`;
+  } else if (loading) {
+    status = "Searching...";
+  } else if (error) {
+    status = "Search unavailable.";
+  } else if (total > 0) {
+    status = `${total.toLocaleString()} result${total === 1 ? "" : "s"} for "${effectiveQuery}"`;
+  } else {
+    status = `No results for "${effectiveQuery}"`;
+  }
+
+  let content;
+  if (tooShort) {
+    content = null;
+  } else if (loading) {
+    content = <Loader />;
+  } else if (error) {
+    content = <ErrorState message={error} onRetry={handleRetry} retryAfter={retryAfter} />;
+  } else if (books.length === 0) {
+    content = <EmptyState query={effectiveQuery} />;
+  } else {
+    content = (
+      <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {books.map((book) => (
+            <BookCard key={book.id} book={book} />
+          ))}
+        </div>
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          onPrev={handlePrev}
+          onNext={handleNext}
+        />
+      </>
+    );
+  }
+
   return (
-    <main className="max-w-6xl mx-auto p-4">
-      <h1 className="text-3xl font-bold text-center mb-6">
+    <section aria-labelledby="books-heading" className="max-w-6xl mx-auto p-4">
+      <h1 id="books-heading" className="text-3xl font-bold text-center mb-6">
         Books Collection
       </h1>
 
-      <form
-        role="search"
-        onSubmit={handleSubmit}
-        className="mb-6 flex justify-center"
-      >
+      <form role="search" onSubmit={handleSubmit} className="mb-6 flex justify-center">
         <label htmlFor="book-search" className="sr-only">
           Search books
         </label>
@@ -99,42 +158,21 @@ const BooksPage = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={`Search books (default: ${DEFAULT_QUERY})`}
-          className="w-full max-w-md px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          aria-describedby="book-search-hint"
+          className="w-full max-w-md px-4 py-2 rounded-md border border-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           autoComplete="off"
         />
+        <p id="book-search-hint" className="sr-only">
+          Results update as you type. Enter at least {MIN_QUERY_LENGTH} characters.
+        </p>
       </form>
 
-      <p className="text-sm text-gray-600 text-center mb-4" aria-live="polite">
-        {loading
-          ? "Searching..."
-          : total > 0
-          ? `${total.toLocaleString()} result${total === 1 ? "" : "s"} for "${effectiveQuery}"`
-          : `No results for "${effectiveQuery}"`}
+      <p className="text-sm text-gray-700 text-center mb-4" aria-live="polite">
+        {status}
       </p>
 
-      {loading ? (
-        <Loader />
-      ) : error ? (
-        <ErrorState message={error} onRetry={handleRetry} />
-      ) : books.length === 0 ? (
-        <EmptyState query={effectiveQuery} />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {books.map((book) => (
-              <BookCard key={book.id} book={book} />
-            ))}
-          </div>
-          <Pagination
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            onPrev={handlePrev}
-            onNext={handleNext}
-          />
-        </>
-      )}
-    </main>
+      {content}
+    </section>
   );
 };
 
