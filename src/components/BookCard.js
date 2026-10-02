@@ -1,23 +1,38 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
-const FallbackCover = ({ title }) => (
-  <div className="w-full h-56 flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-700 p-4">
-    <span className="text-white text-xl font-bold text-center line-clamp-4">
-      {title || "Untitled"}
-    </span>
-  </div>
+const COVER_WIDTH = 128;
+const COVER_HEIGHT = 192;
+
+const PlaceholderCover = ({ title }) => (
+  <svg
+    role="img"
+    aria-label={`No cover available for ${title}`}
+    viewBox={`0 0 ${COVER_WIDTH} ${COVER_HEIGHT}`}
+    className="h-full w-full"
+  >
+    <rect width={COVER_WIDTH} height={COVER_HEIGHT} fill="#1e3a8a" />
+    <rect x="22" y="40" width="84" height="112" rx="4" fill="#3b82f6" />
+    <rect x="30" y="40" width="8" height="112" fill="#1d4ed8" />
+    <path d="M48 70h44M48 86h44M48 102h32" stroke="#dbeafe" strokeWidth="4" strokeLinecap="round" />
+    <text
+      x="64"
+      y="176"
+      textAnchor="middle"
+      fontFamily="system-ui, sans-serif"
+      fontSize="11"
+      fontWeight="600"
+      fill="#eff6ff"
+    >
+      No cover
+    </text>
+  </svg>
 );
 
 const BookCard = ({ book }) => {
-  const volumeInfo = book?.volumeInfo;
-  const title = volumeInfo?.title ?? "Untitled";
-  const authors = volumeInfo?.authors?.join(", ") ?? "Unknown";
-  const description = volumeInfo?.description ?? "No description available.";
-  const thumbnail = volumeInfo?.imageLinks?.thumbnail;
-  const infoLink = volumeInfo?.infoLink;
-
+  const { title, authors, description, thumbnail, infoLink } = book;
   const [imgFailed, setImgFailed] = useState(false);
+  const showImage = Boolean(thumbnail) && !imgFailed;
 
   return (
     <motion.article
@@ -26,22 +41,26 @@ const BookCard = ({ book }) => {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
     >
-      {thumbnail && !imgFailed ? (
-        <img
-          src={thumbnail}
-          alt={`Cover of ${title}`}
-          loading="lazy"
-          decoding="async"
-          onError={() => setImgFailed(true)}
-          className="w-full h-56 object-cover"
-        />
-      ) : (
-        <FallbackCover title={title} />
-      )}
+      <div className="w-full h-56 bg-blue-950 flex items-center justify-center overflow-hidden">
+        {showImage ? (
+          <img
+            src={thumbnail}
+            alt={`Cover of ${title}`}
+            width={COVER_WIDTH}
+            height={COVER_HEIGHT}
+            loading="lazy"
+            decoding="async"
+            onError={() => setImgFailed(true)}
+            className="h-full w-auto object-contain"
+          />
+        ) : (
+          <PlaceholderCover title={title} />
+        )}
+      </div>
       <div className="p-4 flex flex-col flex-1">
         <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="text-gray-600 text-sm">{authors}</p>
-        <p className="text-gray-500 text-sm mt-2 line-clamp-3 flex-1">
+        <p className="text-gray-700 text-sm">{authors}</p>
+        <p className="text-gray-600 text-sm mt-2 line-clamp-3 flex-1">
           {description}
         </p>
         {infoLink && (
@@ -49,10 +68,10 @@ const BookCard = ({ book }) => {
             href={infoLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 text-sm hover:underline mt-3 inline-block focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+            className="text-blue-700 text-sm hover:underline mt-3 inline-block focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
           >
             View Details
-            <span className="sr-only"> (opens in a new tab)</span>
+            <span className="sr-only"> for {title} (opens in a new tab)</span>
           </a>
         )}
       </div>

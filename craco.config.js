@@ -1,9 +1,12 @@
 const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPlugin');
+const { dependencies } = require('./package.json');
 
 module.exports = {
   webpack: {
     configure: (webpackConfig) => {
-      webpackConfig.output.publicPath = 'https://books-child-app.vercel.app/';
+      if (process.env.NODE_ENV === 'production') {
+        webpackConfig.output.publicPath = 'auto';
+      }
 
       webpackConfig.plugins.push(
         new ModuleFederationPlugin({
@@ -13,9 +16,10 @@ module.exports = {
             './BooksApp': './src/App',
           },
           shared: {
-            react: { eager: true },
-            'react-dom': { eager: true },
-            'tailwindcss': { eager: true }
+            react: { singleton: true, requiredVersion: dependencies.react },
+            'react-dom': { singleton: true, requiredVersion: dependencies['react-dom'] },
+            'framer-motion': { singleton: true, requiredVersion: dependencies['framer-motion'] },
+            axios: { singleton: true, requiredVersion: dependencies.axios },
           },
         })
       );
