@@ -144,7 +144,8 @@ const BooksPage = () => {
 
   return (
     <section aria-labelledby="books-heading" className="max-w-6xl mx-auto p-4">
-      <h1 id="books-heading" className="text-3xl font-bold text-center mb-6">
+      <p className="text-xs font-medium uppercase tracking-widest text-[color:var(--mfe-accent,#047857)]">Books remote</p>
+      <h1 id="books-heading" className="mt-1 mb-6 text-2xl font-semibold text-[color:var(--mfe-ink,#0f172a)]">
         Books Collection
       </h1>
 
@@ -159,7 +160,7 @@ const BooksPage = () => {
           onChange={(e) => setQuery(e.target.value)}
           placeholder={`Search books (default: ${DEFAULT_QUERY})`}
           aria-describedby="book-search-hint"
-          className="w-full max-w-md px-4 py-2 rounded-md border border-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full max-w-md px-4 py-2 rounded-md border border-gray-400 text-[color:var(--mfe-ink,#0f172a)] focus:outline-none focus:ring-2 focus:ring-[color:var(--mfe-accent,#047857)] focus:border-[color:var(--mfe-accent,#047857)]"
           autoComplete="off"
         />
         <p id="book-search-hint" className="sr-only">
@@ -167,7 +168,7 @@ const BooksPage = () => {
         </p>
       </form>
 
-      <p className="text-sm text-gray-700 text-center mb-4" aria-live="polite">
+      <p className="text-sm text-[color:var(--mfe-muted,#475569)] text-center mb-4" aria-live="polite">
         {status}
       </p>
 

@@ -18,7 +18,7 @@ const ErrorState = ({ message, onRetry, retryAfter }) => {
           onClick={onRetry}
           disabled={blocked}
           aria-disabled={blocked}
-          className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-[var(--mfe-accent-ink,#065f46)] focus:outline-none focus:ring-2 focus:ring-[color:var(--mfe-accent,#047857)] focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {blocked ? `Retry in ${secondsLeft}s` : "Retry"}
         </button>
