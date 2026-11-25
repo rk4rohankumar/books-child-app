@@ -36,7 +36,7 @@ const BookCard = ({ book }) => {
 
   return (
     <motion.article
-      className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col"
+      className="bg-[var(--mfe-surface,#ffffff)] rounded-[var(--mfe-radius,12px)] shadow-sm overflow-hidden flex flex-col"
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
@@ -59,8 +59,8 @@ const BookCard = ({ book }) => {
       </div>
       <div className="p-4 flex flex-col flex-1">
         <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="text-gray-700 text-sm">{authors}</p>
-        <p className="text-gray-600 text-sm mt-2 line-clamp-3 flex-1">
+        <p className="text-[color:var(--mfe-muted,#475569)] text-sm">{authors}</p>
+        <p className="text-[color:var(--mfe-muted,#475569)] text-sm mt-2 line-clamp-3 flex-1">
           {description}
         </p>
         {infoLink && (
@@ -68,7 +68,7 @@ const BookCard = ({ book }) => {
             href={infoLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-700 text-sm hover:underline mt-3 inline-block focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+            className="text-[color:var(--mfe-accent,#047857)] text-sm hover:underline mt-3 inline-block focus:outline-none focus:ring-2 focus:ring-[color:var(--mfe-accent,#047857)] focus:ring-offset-2 rounded"
           >
             View Details
             <span className="sr-only"> for {title} (opens in a new tab)</span>
